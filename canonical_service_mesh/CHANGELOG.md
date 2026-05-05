@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.0.1...canonical-service-mesh-v0.0.2) (2026-05-05)
+
+
+### chore[canonical-service-mesh]
+
+* adds missing request headers ([#66](https://github.com/canonical/service-mesh/issues/66)) ([e2095df](https://github.com/canonical/service-mesh/commit/e2095df07747323f6d13f43139a0f270503b0719))
+
 ## 0.0.1 (2026-04-24)
 
 

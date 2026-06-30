@@ -48,6 +48,8 @@ request-auth-app := "request-authentication-configurator"
 # DNS hostnames advertised by the two kubeflow ingress gateways
 domain-ui := "ui.kubeflow.com"
 domain-api := "api.kubeflow.com"
+# DNS hostname advertised by the iam traefik (identity bundle public routes)
+domain-auth := "auth.kubeflow.com"
 
 # --- idempotent helpers ---
 
@@ -136,6 +138,8 @@ configure-iam:
     juju config -m {{model-iam}} kratos dev=true
     # disable MFA so users can log in with just a password
     juju config -m {{model-iam}} kratos enforce_mfa=false
+    # DNS hostname advertised by traefik for the identity bundle public routes
+    juju config -m {{model-iam}} traefik-k8s external_hostname={{domain-auth}}
 
 integrate-iam:
     # database
@@ -391,17 +395,21 @@ update-local-hosts:
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     API_IP=$(kubectl -n {{model-kubeflow}} get svc {{ingress-api-app}}-istio \
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    if [[ -z "$UI_IP" || -z "$API_IP" ]]; then
+    AUTH_IP=$(kubectl -n {{model-iam}} get svc traefik-k8s-lb \
+        -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    if [[ -z "$UI_IP" || -z "$API_IP" || -z "$AUTH_IP" ]]; then
         echo "could not resolve gateway LB IPs (are the gateways active?)" >&2; exit 1
     fi
-    echo "UI  gateway {{domain-ui}}  -> $UI_IP"
-    echo "API gateway {{domain-api}} -> $API_IP"
+    echo "UI   gateway {{domain-ui}}   -> $UI_IP"
+    echo "API  gateway {{domain-api}}  -> $API_IP"
+    echo "AUTH gateway {{domain-auth}} -> $AUTH_IP"
     # remove any previous entries for these hostnames, then append the fresh ones
-    sudo sed -i "/[[:space:]]{{domain-ui}}$/d;/[[:space:]]{{domain-api}}$/d" /etc/hosts
-    echo "$UI_IP {{domain-ui}}"  | sudo tee -a /etc/hosts >/dev/null
-    echo "$API_IP {{domain-api}}" | sudo tee -a /etc/hosts >/dev/null
+    sudo sed -i "/[[:space:]]{{domain-ui}}$/d;/[[:space:]]{{domain-api}}$/d;/[[:space:]]{{domain-auth}}$/d" /etc/hosts
+    echo "$UI_IP {{domain-ui}}"     | sudo tee -a /etc/hosts >/dev/null
+    echo "$API_IP {{domain-api}}"   | sudo tee -a /etc/hosts >/dev/null
+    echo "$AUTH_IP {{domain-auth}}" | sudo tee -a /etc/hosts >/dev/null
     echo "Updated /etc/hosts:"
-    grep -E "{{domain-ui}}|{{domain-api}}" /etc/hosts
+    grep -E "{{domain-ui}}|{{domain-api}}|{{domain-auth}}" /etc/hosts
 
 # Configure both in-cluster (CoreDNS) and host (/etc/hosts) DNS for the gateways.
 configure-dns: configure-gateways-dns update-local-hosts

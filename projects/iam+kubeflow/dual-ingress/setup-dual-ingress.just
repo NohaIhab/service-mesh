@@ -460,22 +460,3 @@ create-kubeflow-profile name email:
         name: {{email}}
     EOF
     echo "Profile '{{name}}' created for {{email}}"
-
-# create a test user in kratos
-create-user email password:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    IDENTITY_ID=$(kubectl -n {{model-iam}} exec kratos-0 -c kratos -- \
-        kratos import identities --endpoint http://localhost:4434 /dev/stdin <<EOIDENT | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])"
-    [{
-      "schema_id": "default",
-      "traits": {"email": "{{email}}"},
-      "credentials": {
-        "password": {
-          "config": {"password": "{{password}}"}
-        }
-      }
-    }]
-    EOIDENT
-    )
-    echo "Created identity: $IDENTITY_ID"

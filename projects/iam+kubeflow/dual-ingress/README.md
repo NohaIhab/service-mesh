@@ -53,7 +53,6 @@ just -f setup-dual-ingress.just show-ingress-urls
 | `configure-dns` | Point both gateway hostnames at their LB IPs in CoreDNS and `/etc/hosts`. |
 | `show-ingress-urls` | Print the gateway LB IPs and dashboard URLs. |
 | `create-admin <name> <email>` | Create a kratos admin + kubeflow Profile. |
-| `create-user <email> <password>` | Import a test user into kratos. |
 | `teardown` | Destroy all three models. |
 
 List all available targets with:

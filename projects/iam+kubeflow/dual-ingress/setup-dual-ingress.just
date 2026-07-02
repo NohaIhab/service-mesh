@@ -338,8 +338,11 @@ configure-gateways-dns:
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
     API_IP=$(kubectl -n {{model-kubeflow}} get svc {{ingress-api-app}}-istio \
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    echo "UI  gateway {{domain-ui}}  -> $UI_IP"
-    echo "API gateway {{domain-api}} -> $API_IP"
+    AUTH_IP=$(kubectl -n {{model-iam}} get svc traefik-k8s-lb \
+        -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    echo "UI   gateway {{domain-ui}}   -> $UI_IP"
+    echo "API  gateway {{domain-api}}  -> $API_IP"
+    echo "AUTH gateway {{domain-auth}} -> $AUTH_IP"
     # detect the CoreDNS configmap (microk8s: "coredns", Canonical K8s: "ck-dns-coredns")
     CM=$(kubectl -n kube-system get configmap coredns -o name 2>/dev/null \
         || kubectl -n kube-system get configmap ck-dns-coredns -o name 2>/dev/null \
@@ -354,23 +357,24 @@ configure-gateways-dns:
         || kubectl -n kube-system get deploy -o name \
             | grep -E 'coredns' | head -n1)
     CURRENT=$(kubectl -n kube-system get configmap "$CM_NAME" -o jsonpath='{.data.Corefile}')
-    PATCHED=$(CURRENT="$CURRENT" UI_IP="$UI_IP" API_IP="$API_IP" \
-        DOMAIN_UI="{{domain-ui}}" DOMAIN_API="{{domain-api}}" python3 <<'PY'
+    PATCHED=$(CURRENT="$CURRENT" UI_IP="$UI_IP" API_IP="$API_IP" AUTH_IP="$AUTH_IP" \
+        DOMAIN_UI="{{domain-ui}}" DOMAIN_API="{{domain-api}}" DOMAIN_AUTH="{{domain-auth}}" python3 <<'PY'
     import os, re
     corefile = os.environ["CURRENT"]
-    ui_ip, api_ip = os.environ["UI_IP"], os.environ["API_IP"]
-    domain_ui, domain_api = os.environ["DOMAIN_UI"], os.environ["DOMAIN_API"]
+    ui_ip, api_ip, auth_ip = os.environ["UI_IP"], os.environ["API_IP"], os.environ["AUTH_IP"]
+    domain_ui, domain_api, domain_auth = os.environ["DOMAIN_UI"], os.environ["DOMAIN_API"], os.environ["DOMAIN_AUTH"]
     block = (
         "    hosts {\n"
         + "        " + ui_ip + " " + domain_ui + "\n"
         + "        " + api_ip + " " + domain_api + "\n"
+        + "        " + auth_ip + " " + domain_auth + "\n"
         + "        fallthrough\n"
         + "    }\n"
     )
-    # drop any previous hosts block that references either of our domains
+    # drop any previous hosts block that references any of our domains
     pattern = re.compile(
-        r"[ \t]*hosts \{[^}]*(?:%s|%s)[^}]*\}\n"
-        % (re.escape(domain_ui), re.escape(domain_api))
+        r"[ \t]*hosts \{[^}]*(?:%s|%s|%s)[^}]*\}\n"
+        % (re.escape(domain_ui), re.escape(domain_api), re.escape(domain_auth))
     )
     corefile = pattern.sub("", corefile)
     # insert the fresh block before the kubernetes plugin line
@@ -384,7 +388,7 @@ configure-gateways-dns:
     if [[ -n "${DEPLOY:-}" ]]; then
         kubectl -n kube-system rollout restart "$DEPLOY"
     fi
-    echo "Done. {{domain-ui}} -> $UI_IP, {{domain-api}} -> $API_IP in $CM_NAME"
+    echo "Done. {{domain-ui}} -> $UI_IP, {{domain-api}} -> $API_IP, {{domain-auth}} -> $AUTH_IP in $CM_NAME"
 
 # Add the two gateway hostnames to the local /etc/hosts so the host/browser can
 # resolve them (CoreDNS only handles in-cluster resolution). Requires sudo.
